@@ -3,8 +3,12 @@ import './App.css'
 import Header from './components/Header'
 import MenuItem from './components/MenuItem'
 import ShoppingCart from './components/ShoppingCart'
+import AdminDashboard from './components/AdminDashboard'
+import InventoryStatus from './components/InventoryStatus'
+import OrderStatus from './components/OrderStatus'
 
 function App() {
+  const [currentView, setCurrentView] = useState('order') // 'order' or 'admin'
   // 메뉴 데이터
   const [menus] = useState([
     {
@@ -120,32 +124,115 @@ function App() {
       alert('장바구니가 비어있습니다.')
       return
     }
+    
+    // 주문 생성
+    const newOrder = {
+      id: Date.now(),
+      date: new Date(),
+      items: cart.map(item => ({
+        menuName: item.menuName,
+        optionNames: item.optionNames,
+        quantity: item.quantity,
+        price: item.price
+      })),
+      total: calculateTotal(),
+      status: 'received' // 'received', 'in_production', 'completed'
+    }
+    
+    // 주문을 로컬 스토리지에 저장하고 상태 업데이트
+    const existingOrders = JSON.parse(localStorage.getItem('orders') || '[]')
+    const updatedOrders = [...existingOrders, newOrder]
+    localStorage.setItem('orders', JSON.stringify(updatedOrders))
+    
+    // 관리자 화면의 주문 목록도 업데이트
+    setOrders(updatedOrders.map(order => ({
+      ...order,
+      date: new Date(order.date)
+    })))
+    
     alert(`주문이 완료되었습니다!\n총 금액: ${calculateTotal().toLocaleString()}원`)
     setCart([])
   }
 
+  // 관리자 화면 상태
+  const [inventory, setInventory] = useState([
+    { id: 1, name: '아메리카노(ICE)', stock: 10 },
+    { id: 2, name: '아메리카노(HOT)', stock: 10 },
+    { id: 3, name: '카페라떼', stock: 10 }
+  ])
+
+  const [orders, setOrders] = useState(() => {
+    const savedOrders = JSON.parse(localStorage.getItem('orders') || '[]')
+    return savedOrders.map(order => ({
+      ...order,
+      date: new Date(order.date)
+    }))
+  })
+
+  // 재고 조정
+  const updateInventory = (menuId, change) => {
+    setInventory(inventory.map(item => 
+      item.id === menuId 
+        ? { ...item, stock: Math.max(0, item.stock + change) }
+        : item
+    ))
+  }
+
+  // 주문 상태 변경
+  const updateOrderStatus = (orderId, newStatus) => {
+    const updatedOrders = orders.map(order => 
+      order.id === orderId ? { ...order, status: newStatus } : order
+    )
+    setOrders(updatedOrders)
+    localStorage.setItem('orders', JSON.stringify(updatedOrders))
+  }
+
+  // 주문 통계 계산
+  const orderStats = {
+    total: orders.length,
+    received: orders.filter(o => o.status === 'received').length,
+    inProduction: orders.filter(o => o.status === 'in_production').length,
+    completed: orders.filter(o => o.status === 'completed').length
+  }
+
   return (
     <div className="App">
-      <Header />
-      <div className="menu-section">
-        <h2>메뉴</h2>
-        <div className="menu-grid">
-          {menus.map(menu => (
-            <MenuItem
-              key={menu.id}
-              menu={menu}
-              onAddToCart={addToCart}
-            />
-          ))}
+      <Header currentView={currentView} onViewChange={setCurrentView} />
+      {currentView === 'order' ? (
+        <>
+          <div className="menu-section">
+            <h2>메뉴</h2>
+            <div className="menu-grid">
+              {menus.map(menu => (
+                <MenuItem
+                  key={menu.id}
+                  menu={menu}
+                  onAddToCart={addToCart}
+                />
+              ))}
+            </div>
+          </div>
+          <ShoppingCart
+            cart={cart}
+            total={calculateTotal()}
+            onRemove={removeFromCart}
+            onUpdateQuantity={updateQuantity}
+            onOrder={handleOrder}
+          />
+        </>
+      ) : (
+        <div className="admin-section">
+          <AdminDashboard stats={orderStats} />
+          <InventoryStatus 
+            inventory={inventory} 
+            onUpdateInventory={updateInventory}
+          />
+          <OrderStatus 
+            orders={orders}
+            onUpdateStatus={updateOrderStatus}
+          />
         </div>
-      </div>
-      <ShoppingCart
-        cart={cart}
-        total={calculateTotal()}
-        onRemove={removeFromCart}
-        onUpdateQuantity={updateQuantity}
-        onOrder={handleOrder}
-      />
+      )}
     </div>
   )
 }
