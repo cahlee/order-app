@@ -3,6 +3,7 @@ import './MenuItem.css'
 
 function MenuItem({ menu, onAddToCart }) {
   const [selectedOptions, setSelectedOptions] = useState([])
+  const [imageError, setImageError] = useState(false)
 
   const handleOptionChange = (optionId) => {
     if (selectedOptions.includes(optionId)) {
@@ -20,20 +21,18 @@ function MenuItem({ menu, onAddToCart }) {
   return (
     <div className="menu-item-card">
       <div className="menu-image-container">
-        {menu.image ? (
+        {menu.image && !imageError ? (
           <img 
             src={menu.image} 
             alt={menu.name}
             className="menu-image"
-            onError={(e) => {
-              e.target.style.display = 'none'
-              e.target.nextSibling.style.display = 'flex'
-            }}
+            onError={() => setImageError(true)}
           />
-        ) : null}
-        <div className="menu-image-placeholder" style={{ display: menu.image ? 'none' : 'flex' }}>
-          <div className="placeholder-x">✕</div>
-        </div>
+        ) : (
+          <div className="menu-image-placeholder">
+            <div className="placeholder-x">✕</div>
+          </div>
+        )}
       </div>
       <div className="menu-info">
         <h3 className="menu-name">{menu.name}</h3>

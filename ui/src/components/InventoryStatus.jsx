@@ -38,12 +38,14 @@ function InventoryStatus({ inventory, onUpdateInventory }) {
                         className="inventory-button minus"
                         onClick={() => onUpdateInventory(item.id, -1)}
                         disabled={item.stock === 0}
+                        aria-label={`${item.name} 재고 감소`}
                       >
                         −
                       </button>
                       <button
                         className="inventory-button plus"
                         onClick={() => onUpdateInventory(item.id, 1)}
+                        aria-label={`${item.name} 재고 증가`}
                       >
                         +
                       </button>

@@ -19,19 +19,23 @@ function ShoppingCart({ cart, total, onRemove, onUpdateQuantity, onOrder }) {
                 </div>
                 <div className="cart-item-controls">
                   <div className="quantity-controls">
-                    <button
-                      className="quantity-button"
-                      onClick={() => onUpdateQuantity(item.key, -1)}
-                    >
-                      −
-                    </button>
-                    <span className="quantity-display">{item.quantity}</span>
-                    <button
-                      className="quantity-button"
-                      onClick={() => onUpdateQuantity(item.key, 1)}
-                    >
-                      +
-                    </button>
+                  <button
+                    className="quantity-button"
+                    onClick={() => onUpdateQuantity(item.key, -1)}
+                    aria-label="수량 감소"
+                  >
+                    −
+                  </button>
+                  <span className="quantity-display" aria-label={`수량: ${item.quantity}`}>
+                    {item.quantity}
+                  </span>
+                  <button
+                    className="quantity-button"
+                    onClick={() => onUpdateQuantity(item.key, 1)}
+                    aria-label="수량 증가"
+                  >
+                    +
+                  </button>
                   </div>
                   <span className="cart-item-price">
                     {(item.price * item.quantity).toLocaleString()}원
@@ -39,6 +43,7 @@ function ShoppingCart({ cart, total, onRemove, onUpdateQuantity, onOrder }) {
                   <button
                     className="remove-button"
                     onClick={() => onRemove(item.key)}
+                    aria-label={`${item.menuName} 삭제`}
                   >
                     삭제
                   </button>
@@ -54,7 +59,11 @@ function ShoppingCart({ cart, total, onRemove, onUpdateQuantity, onOrder }) {
                 <span className="total-label">총 금액</span>
                 <span className="total-price">{total.toLocaleString()}원</span>
               </div>
-              <button className="order-button" onClick={onOrder}>
+              <button 
+                className="order-button" 
+                onClick={onOrder}
+                aria-label="주문하기"
+              >
                 주문하기
               </button>
             </div>

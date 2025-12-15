@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import './App.css'
 import Header from './components/Header'
 import MenuItem from './components/MenuItem'
@@ -125,49 +125,90 @@ function App() {
       return
     }
     
-    // 주문 생성
-    const newOrder = {
-      id: Date.now(),
-      date: new Date(),
-      items: cart.map(item => ({
-        menuName: item.menuName,
-        optionNames: item.optionNames,
-        quantity: item.quantity,
-        price: item.price
-      })),
-      total: calculateTotal(),
-      status: 'received' // 'received', 'in_production', 'completed'
+    try {
+      // 주문 생성 (더 고유한 ID 생성)
+      const newOrder = {
+        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        date: new Date().toISOString(),
+        items: cart.map(item => ({
+          menuName: item.menuName,
+          optionNames: item.optionNames,
+          quantity: item.quantity,
+          price: item.price
+        })),
+        total: calculateTotal(),
+        status: 'received' // 'received', 'in_production', 'completed'
+      }
+      
+      // 주문을 로컬 스토리지에 저장하고 상태 업데이트
+      const existingOrders = JSON.parse(localStorage.getItem('orders') || '[]')
+      const updatedOrders = [...existingOrders, newOrder]
+      localStorage.setItem('orders', JSON.stringify(updatedOrders))
+      
+      // 관리자 화면의 주문 목록도 업데이트 (최신순 정렬)
+      const sortedOrders = updatedOrders
+        .map(order => ({
+          ...order,
+          date: new Date(order.date)
+        }))
+        .sort((a, b) => b.date - a.date)
+      
+      setOrders(sortedOrders)
+      
+      alert(`주문이 완료되었습니다!\n총 금액: ${calculateTotal().toLocaleString()}원`)
+      setCart([])
+    } catch (error) {
+      console.error('주문 저장 중 오류 발생:', error)
+      alert('주문 저장 중 오류가 발생했습니다. 다시 시도해주세요.')
     }
-    
-    // 주문을 로컬 스토리지에 저장하고 상태 업데이트
-    const existingOrders = JSON.parse(localStorage.getItem('orders') || '[]')
-    const updatedOrders = [...existingOrders, newOrder]
-    localStorage.setItem('orders', JSON.stringify(updatedOrders))
-    
-    // 관리자 화면의 주문 목록도 업데이트
-    setOrders(updatedOrders.map(order => ({
-      ...order,
-      date: new Date(order.date)
-    })))
-    
-    alert(`주문이 완료되었습니다!\n총 금액: ${calculateTotal().toLocaleString()}원`)
-    setCart([])
   }
 
   // 관리자 화면 상태
-  const [inventory, setInventory] = useState([
-    { id: 1, name: '아메리카노(ICE)', stock: 10 },
-    { id: 2, name: '아메리카노(HOT)', stock: 10 },
-    { id: 3, name: '카페라떼', stock: 10 }
-  ])
+  const [inventory, setInventory] = useState(() => {
+    try {
+      const savedInventory = JSON.parse(localStorage.getItem('inventory') || 'null')
+      if (savedInventory) {
+        return savedInventory
+      }
+      // 초기 재고 데이터
+      return [
+        { id: 1, name: '아메리카노(ICE)', stock: 10 },
+        { id: 2, name: '아메리카노(HOT)', stock: 10 },
+        { id: 3, name: '카페라떼', stock: 10 }
+      ]
+    } catch (error) {
+      console.error('재고 데이터 로드 중 오류:', error)
+      return [
+        { id: 1, name: '아메리카노(ICE)', stock: 10 },
+        { id: 2, name: '아메리카노(HOT)', stock: 10 },
+        { id: 3, name: '카페라떼', stock: 10 }
+      ]
+    }
+  })
 
   const [orders, setOrders] = useState(() => {
-    const savedOrders = JSON.parse(localStorage.getItem('orders') || '[]')
-    return savedOrders.map(order => ({
-      ...order,
-      date: new Date(order.date)
-    }))
+    try {
+      const savedOrders = JSON.parse(localStorage.getItem('orders') || '[]')
+      return savedOrders
+        .map(order => ({
+          ...order,
+          date: new Date(order.date)
+        }))
+        .sort((a, b) => b.date - a.date) // 최신순 정렬
+    } catch (error) {
+      console.error('주문 데이터 로드 중 오류:', error)
+      return []
+    }
   })
+
+  // 재고 변경 시 localStorage에 저장
+  useEffect(() => {
+    try {
+      localStorage.setItem('inventory', JSON.stringify(inventory))
+    } catch (error) {
+      console.error('재고 저장 중 오류:', error)
+    }
+  }, [inventory])
 
   // 재고 조정
   const updateInventory = (menuId, change) => {
@@ -180,20 +221,30 @@ function App() {
 
   // 주문 상태 변경
   const updateOrderStatus = (orderId, newStatus) => {
-    const updatedOrders = orders.map(order => 
-      order.id === orderId ? { ...order, status: newStatus } : order
-    )
-    setOrders(updatedOrders)
-    localStorage.setItem('orders', JSON.stringify(updatedOrders))
+    try {
+      const updatedOrders = orders.map(order => 
+        order.id === orderId ? { ...order, status: newStatus } : order
+      )
+      setOrders(updatedOrders)
+      // localStorage에 저장할 때는 날짜를 ISO 문자열로 변환
+      const ordersForStorage = updatedOrders.map(order => ({
+        ...order,
+        date: order.date instanceof Date ? order.date.toISOString() : order.date
+      }))
+      localStorage.setItem('orders', JSON.stringify(ordersForStorage))
+    } catch (error) {
+      console.error('주문 상태 업데이트 중 오류:', error)
+      alert('주문 상태 업데이트 중 오류가 발생했습니다.')
+    }
   }
 
-  // 주문 통계 계산
-  const orderStats = {
+  // 주문 통계 계산 (useMemo로 최적화)
+  const orderStats = useMemo(() => ({
     total: orders.length,
     received: orders.filter(o => o.status === 'received').length,
     inProduction: orders.filter(o => o.status === 'in_production').length,
     completed: orders.filter(o => o.status === 'completed').length
-  }
+  }), [orders])
 
   return (
     <div className="App">

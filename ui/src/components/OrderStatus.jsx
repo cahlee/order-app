@@ -24,6 +24,7 @@ function OrderStatus({ orders, onUpdateStatus }) {
         <button
           className="status-button start-production"
           onClick={() => onUpdateStatus(order.id, 'in_production')}
+          aria-label="제조 시작"
         >
           제조 시작
         </button>
@@ -33,6 +34,7 @@ function OrderStatus({ orders, onUpdateStatus }) {
         <button
           className="status-button complete"
           onClick={() => onUpdateStatus(order.id, 'completed')}
+          aria-label="제조 완료"
         >
           제조 완료
         </button>
