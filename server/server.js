@@ -7,11 +7,35 @@ const app = express()
 const PORT = process.env.PORT || 3000
 
 // 미들웨어
-// CORS 설정: 프로덕션에서는 프런트엔드 URL 허용
+// CORS 설정: 프런트엔드 URL 허용
+const allowedOrigins = [
+  process.env.FRONTEND_URL,
+  'https://order-app-frontend-5zc8.onrender.com', // 프런트엔드 URL (하드코딩)
+  'http://localhost:5173', // 로컬 개발용
+  'http://localhost:3000', // 로컬 개발용
+  'http://localhost:65173' // 로컬 개발용 (Vite 포트)
+].filter(Boolean) // undefined 제거
+
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || process.env.NODE_ENV === 'production' 
-    ? false // 프로덕션에서는 환경 변수로 설정
-    : '*', // 개발 환경에서는 모든 origin 허용
+  origin: function (origin, callback) {
+    // 개발 환경에서는 모든 origin 허용
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true)
+    }
+    
+    // origin이 없으면 (같은 도메인 요청, Postman 등) 허용
+    if (!origin) {
+      return callback(null, true)
+    }
+    
+    // 허용된 origin 목록에 있으면 허용
+    if (allowedOrigins.some(allowed => origin === allowed)) {
+      callback(null, true)
+    } else {
+      console.warn(`CORS 차단: ${origin}`)
+      callback(new Error('CORS 정책에 의해 차단되었습니다.'))
+    }
+  },
   credentials: true
 }
 app.use(cors(corsOptions))
