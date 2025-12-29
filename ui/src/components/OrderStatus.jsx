@@ -9,13 +9,12 @@ function OrderStatus({ orders, onUpdateStatus }) {
     return `${month}월 ${day}일 ${hours}:${minutes}`
   }
 
-  const formatOrderItems = (items) => {
-    return items.map(item => {
-      const options = item.optionNames.length > 0 
-        ? ` (${item.optionNames.join(', ')})` 
-        : ''
-      return `${item.menuName}${options} x ${item.quantity}`
-    }).join(', ')
+  const formatOrderItem = (item) => {
+    // API 응답 형식: options는 문자열 배열
+    const options = item.options && item.options.length > 0 
+      ? ` (${item.options.join(', ')})` 
+      : ''
+    return `${item.menuName}${options} x ${item.quantity}`
   }
 
   const getStatusButton = (order) => {
@@ -68,7 +67,13 @@ function OrderStatus({ orders, onUpdateStatus }) {
                   <span className="order-date">{formatDate(order.date)}</span>
                   <span className="order-status-badge">{getStatusLabel(order.status)}</span>
                 </div>
-                <div className="order-items">{formatOrderItems(order.items)}</div>
+                <div className="order-items">
+                  {order.items.map((item, index) => (
+                    <div key={index} className="order-item-row">
+                      {formatOrderItem(item)}
+                    </div>
+                  ))}
+                </div>
                 <div className="order-total">{order.total.toLocaleString()}원</div>
               </div>
               <div className="order-actions">

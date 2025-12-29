@@ -6,45 +6,39 @@ import ShoppingCart from './components/ShoppingCart'
 import AdminDashboard from './components/AdminDashboard'
 import InventoryStatus from './components/InventoryStatus'
 import OrderStatus from './components/OrderStatus'
+import * as api from './api'
 
 function App() {
   const [currentView, setCurrentView] = useState('order') // 'order' or 'admin'
+  
   // 메뉴 데이터
-  const [menus] = useState([
-    {
-      id: 1,
-      name: '아메리카노(ICE)',
-      price: 4000,
-      description: '에스프레소에 물을 넣어 만든 시원한 커피',
-      image: '/images/americano-ice.jpg',
-      options: [
-        { id: 'shot', name: '샷 추가', price: 500 },
-        { id: 'syrup', name: '시럽 추가', price: 0 }
-      ]
-    },
-    {
-      id: 2,
-      name: '아메리카노(HOT)',
-      price: 4000,
-      description: '에스프레소에 물을 넣어 만든 따뜻한 커피',
-      image: '/images/americano-hot.jpg',
-      options: [
-        { id: 'shot', name: '샷 추가', price: 500 },
-        { id: 'syrup', name: '시럽 추가', price: 0 }
-      ]
-    },
-    {
-      id: 3,
-      name: '카페라떼',
-      price: 5000,
-      description: '에스프레소와 스팀 밀크의 조화',
-      image: '/images/caffe-latte.jpg',
-      options: [
-        { id: 'shot', name: '샷 추가', price: 500 },
-        { id: 'syrup', name: '시럽 추가', price: 0 }
-      ]
+  const [menus, setMenus] = useState([])
+  const [menusLoading, setMenusLoading] = useState(true)
+  
+  // 메뉴 데이터 로드
+  useEffect(() => {
+    const loadMenus = async () => {
+      try {
+        const menuData = await api.getMenus()
+        // 옵션 ID를 문자열로 변환 (프런트엔드 호환성)
+        const formattedMenus = menuData.map(menu => ({
+          ...menu,
+          options: menu.options.map(opt => ({
+            id: String(opt.id),
+            name: opt.name,
+            price: opt.price
+          }))
+        }))
+        setMenus(formattedMenus)
+      } catch (error) {
+        console.error('메뉴 로드 오류:', error)
+        alert('메뉴를 불러오는 중 오류가 발생했습니다.')
+      } finally {
+        setMenusLoading(false)
+      }
     }
-  ])
+    loadMenus()
+  }, [])
 
   // 장바구니 상태
   const [cart, setCart] = useState([])
@@ -119,132 +113,155 @@ function App() {
   }
 
   // 주문하기
-  const handleOrder = () => {
+  const handleOrder = async () => {
     if (cart.length === 0) {
       alert('장바구니가 비어있습니다.')
       return
     }
     
     try {
-      // 주문 생성 (더 고유한 ID 생성)
-      const newOrder = {
-        id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        date: new Date().toISOString(),
-        items: cart.map(item => ({
-          menuName: item.menuName,
-          optionNames: item.optionNames,
+      // API 형식으로 주문 데이터 변환
+      const orderItems = cart.map(item => {
+        // 옵션 ID를 숫자로 변환
+        const optionIds = item.optionNames.map(optName => {
+          const menu = menus.find(m => m.id === item.menuId)
+          if (menu) {
+            const option = menu.options.find(opt => opt.name === optName)
+            return option ? parseInt(option.id) : null
+          }
+          return null
+        }).filter(id => id !== null)
+        
+        return {
+          menuId: item.menuId,
           quantity: item.quantity,
-          price: item.price
-        })),
-        total: calculateTotal(),
-        status: 'received' // 'received', 'in_production', 'completed'
+          optionIds: optionIds,
+          itemPrice: item.price
+        }
+      })
+      
+      const orderData = {
+        items: orderItems,
+        totalAmount: calculateTotal()
       }
       
-      // 주문을 로컬 스토리지에 저장하고 상태 업데이트
-      const existingOrders = JSON.parse(localStorage.getItem('orders') || '[]')
-      const updatedOrders = [...existingOrders, newOrder]
-      localStorage.setItem('orders', JSON.stringify(updatedOrders))
+      // API 호출
+      await api.createOrder(orderData)
       
-      // 관리자 화면의 주문 목록도 업데이트 (최신순 정렬)
-      const sortedOrders = updatedOrders
-        .map(order => ({
-          ...order,
-          date: new Date(order.date)
+      // 메뉴 데이터 새로고침 (재고 업데이트)
+      const menuData = await api.getMenus()
+      const formattedMenus = menuData.map(menu => ({
+        ...menu,
+        options: menu.options.map(opt => ({
+          id: String(opt.id),
+          name: opt.name,
+          price: opt.price
         }))
-        .sort((a, b) => b.date - a.date)
+      }))
+      setMenus(formattedMenus)
       
-      setOrders(sortedOrders)
+      // 주문 목록 새로고침
+      await loadOrders()
       
       alert(`주문이 완료되었습니다!\n총 금액: ${calculateTotal().toLocaleString()}원`)
       setCart([])
     } catch (error) {
-      console.error('주문 저장 중 오류 발생:', error)
-      alert('주문 저장 중 오류가 발생했습니다. 다시 시도해주세요.')
+      console.error('주문 생성 오류:', error)
+      alert(error.message || '주문 생성 중 오류가 발생했습니다. 다시 시도해주세요.')
     }
   }
 
   // 관리자 화면 상태
-  const [inventory, setInventory] = useState(() => {
-    try {
-      const savedInventory = JSON.parse(localStorage.getItem('inventory') || 'null')
-      if (savedInventory) {
-        return savedInventory
-      }
-      // 초기 재고 데이터
-      return [
-        { id: 1, name: '아메리카노(ICE)', stock: 10 },
-        { id: 2, name: '아메리카노(HOT)', stock: 10 },
-        { id: 3, name: '카페라떼', stock: 10 }
-      ]
-    } catch (error) {
-      console.error('재고 데이터 로드 중 오류:', error)
-      return [
-        { id: 1, name: '아메리카노(ICE)', stock: 10 },
-        { id: 2, name: '아메리카노(HOT)', stock: 10 },
-        { id: 3, name: '카페라떼', stock: 10 }
-      ]
-    }
+  const [inventory, setInventory] = useState([])
+  const [orders, setOrders] = useState([])
+  const [orderStats, setOrderStats] = useState({
+    total: 0,
+    received: 0,
+    inProduction: 0,
+    completed: 0
   })
-
-  const [orders, setOrders] = useState(() => {
+  
+  // 주문 목록 로드
+  const loadOrders = async () => {
     try {
-      const savedOrders = JSON.parse(localStorage.getItem('orders') || '[]')
-      return savedOrders
-        .map(order => ({
-          ...order,
-          date: new Date(order.date)
-        }))
-        .sort((a, b) => b.date - a.date) // 최신순 정렬
+      const orderData = await api.getOrders()
+      const formattedOrders = orderData.map(order => ({
+        id: order.id,
+        date: new Date(order.orderDate),
+        items: order.items,
+        total: order.totalAmount,
+        status: order.status
+      }))
+      setOrders(formattedOrders)
     } catch (error) {
-      console.error('주문 데이터 로드 중 오류:', error)
-      return []
+      console.error('주문 목록 로드 오류:', error)
     }
-  })
-
-  // 재고 변경 시 localStorage에 저장
+  }
+  
+  // 주문 통계 로드
+  const loadOrderStats = async () => {
+    try {
+      const stats = await api.getOrderStats()
+      setOrderStats(stats)
+    } catch (error) {
+      console.error('주문 통계 로드 오류:', error)
+    }
+  }
+  
+  // 재고 데이터는 menus에서 가져옴
   useEffect(() => {
-    try {
-      localStorage.setItem('inventory', JSON.stringify(inventory))
-    } catch (error) {
-      console.error('재고 저장 중 오류:', error)
+    if (menus.length > 0) {
+      setInventory(menus.map(menu => ({
+        id: menu.id,
+        name: menu.name,
+        stock: menu.stock
+      })))
     }
-  }, [inventory])
+  }, [menus])
+  
+  // 관리자 화면 진입 시 데이터 로드
+  useEffect(() => {
+    if (currentView === 'admin') {
+      loadOrders()
+      loadOrderStats()
+    }
+  }, [currentView])
 
   // 재고 조정
-  const updateInventory = (menuId, change) => {
-    setInventory(inventory.map(item => 
-      item.id === menuId 
-        ? { ...item, stock: Math.max(0, item.stock + change) }
-        : item
-    ))
+  const updateInventory = async (menuId, change) => {
+    try {
+      await api.updateStock(menuId, change)
+      
+      // 메뉴 데이터 새로고침
+      const menuData = await api.getMenus()
+      const formattedMenus = menuData.map(menu => ({
+        ...menu,
+        options: menu.options.map(opt => ({
+          id: String(opt.id),
+          name: opt.name,
+          price: opt.price
+        }))
+      }))
+      setMenus(formattedMenus)
+    } catch (error) {
+      console.error('재고 조정 오류:', error)
+      alert('재고 조정 중 오류가 발생했습니다.')
+    }
   }
 
   // 주문 상태 변경
-  const updateOrderStatus = (orderId, newStatus) => {
+  const updateOrderStatus = async (orderId, newStatus) => {
     try {
-      const updatedOrders = orders.map(order => 
-        order.id === orderId ? { ...order, status: newStatus } : order
-      )
-      setOrders(updatedOrders)
-      // localStorage에 저장할 때는 날짜를 ISO 문자열로 변환
-      const ordersForStorage = updatedOrders.map(order => ({
-        ...order,
-        date: order.date instanceof Date ? order.date.toISOString() : order.date
-      }))
-      localStorage.setItem('orders', JSON.stringify(ordersForStorage))
+      await api.updateOrderStatus(orderId, newStatus)
+      
+      // 주문 목록 및 통계 새로고침
+      await loadOrders()
+      await loadOrderStats()
     } catch (error) {
-      console.error('주문 상태 업데이트 중 오류:', error)
-      alert('주문 상태 업데이트 중 오류가 발생했습니다.')
+      console.error('주문 상태 업데이트 오류:', error)
+      alert(error.message || '주문 상태 업데이트 중 오류가 발생했습니다.')
     }
   }
-
-  // 주문 통계 계산 (useMemo로 최적화)
-  const orderStats = useMemo(() => ({
-    total: orders.length,
-    received: orders.filter(o => o.status === 'received').length,
-    inProduction: orders.filter(o => o.status === 'in_production').length,
-    completed: orders.filter(o => o.status === 'completed').length
-  }), [orders])
 
   return (
     <div className="App">
@@ -253,15 +270,19 @@ function App() {
         <>
           <div className="menu-section">
             <h2>메뉴</h2>
-            <div className="menu-grid">
-              {menus.map(menu => (
-                <MenuItem
-                  key={menu.id}
-                  menu={menu}
-                  onAddToCart={addToCart}
-                />
-              ))}
-            </div>
+            {menusLoading ? (
+              <p>메뉴를 불러오는 중...</p>
+            ) : (
+              <div className="menu-grid">
+                {menus.map(menu => (
+                  <MenuItem
+                    key={menu.id}
+                    menu={menu}
+                    onAddToCart={addToCart}
+                  />
+                ))}
+              </div>
+            )}
           </div>
           <ShoppingCart
             cart={cart}

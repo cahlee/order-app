@@ -19,9 +19,9 @@ app.get('/', (req, res) => {
   })
 })
 
-// API 라우트 (추후 추가)
-// app.use('/api/menus', require('./routes/menus'))
-// app.use('/api/orders', require('./routes/orders'))
+// API 라우트
+app.use('/api/menus', require('./routes/menus'))
+app.use('/api/orders', require('./routes/orders'))
 
 // 에러 핸들링 미들웨어
 app.use((err, req, res, next) => {
