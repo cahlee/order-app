@@ -8,16 +8,21 @@ if (process.env.DATABASE_URL) {
   // Render.com 등에서 제공하는 DATABASE_URL 사용
   poolConfig = {
     connectionString: process.env.DATABASE_URL,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+    ssl: { rejectUnauthorized: false } // Render.com은 항상 SSL 필요
   }
 } else {
-  // 개별 환경 변수 사용 (로컬 개발)
+  // 개별 환경 변수 사용
+  // Render.com 환경에서는 SSL이 필요하므로, 프로덕션 환경이거나 DB_HOST에 render.com이 포함되면 SSL 사용
+  const isRenderDb = process.env.DB_HOST && process.env.DB_HOST.includes('render.com')
+  const needsSSL = process.env.NODE_ENV === 'production' || isRenderDb
+  
   poolConfig = {
     host: process.env.DB_HOST || 'localhost',
     port: process.env.DB_PORT || 5432,
     database: process.env.DB_NAME || 'order_app',
     user: process.env.DB_USER || 'postgres',
     password: process.env.DB_PASSWORD || '',
+    ssl: needsSSL ? { rejectUnauthorized: false } : false
   }
 }
 
