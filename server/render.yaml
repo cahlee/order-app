@@ -1,0 +1,17 @@
+# Render.com 배포 설정 파일 (선택사항)
+# 이 파일은 Render.com에서 자동으로 인식하지 않으므로,
+# 대시보드에서 직접 설정하는 것을 권장합니다.
+
+services:
+  - type: web
+    name: order-app-api
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # 데이터베이스 환경 변수는 Render.com 대시보드에서 설정하세요
+
